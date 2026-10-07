@@ -20,7 +20,7 @@
 
 <img src="docs/screenshots/feed-desktop.png" alt="social-web home feed with sidebar navigation, the composer, posts and community discovery" width="900">
 
-<sub>Screenshot supplied by the project owner, shown unchanged.</sub>
+<sub>Current desktop interface captured locally with fictional profiles, posts and communities.</sub>
 
 </div>
 
