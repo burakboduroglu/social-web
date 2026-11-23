@@ -37,7 +37,7 @@ const root = createRootRoute({ component: Outlet, pendingComponent: LoadingSpinn
 // A live session makes the auth screens pointless, so send those visits home.
 async function redirectIfSignedIn() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) throw redirect({ to: "/" });
+  if (session) throw redirect({ to: "/", replace: true });
 }
 const signin = createRoute({ getParentRoute: () => root, path: "/sign-in", beforeLoad: redirectIfSignedIn, component: () => <AuthPage /> });
 const signup = createRoute({ getParentRoute: () => root, path: "/sign-up", beforeLoad: redirectIfSignedIn, component: () => <AuthPage signup /> });

@@ -44,7 +44,12 @@ try {
       invalidateApiCache(true);
     }
     previousAccountId = accountId;
-    if (event === "SIGNED_OUT") { void router.navigate({ to: "/sign-in" }); }
+    // Only leave the auth screens when a sign-out happens elsewhere; navigating
+    // to /sign-in while already there would fight the router.
+    if (event === "SIGNED_OUT") {
+      const path = router.state.location.pathname;
+      if (!path.startsWith("/sign-") && !path.startsWith("/auth/")) void router.navigate({ to: "/sign-in", replace: true });
+    }
   });
   root.render(<><RouterProvider router={router} /><ToastViewport /></>);
 } catch (error) {
