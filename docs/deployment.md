@@ -12,11 +12,12 @@ fails the TLS handshake. Hyperdrive terminates that connection inside Cloudflare
 and gives the Worker a connection string it can trust.
 
 The Worker sets `DATABASE_SSL=disable` for that hop, and `server/db/client.ts` uses
-node-postgres there. Hyperdrive's transaction pool drops the extra type-lookup
-messages Drizzle sends through `postgres.js` when prepared statements are off.
-Those hung client connections fill the origin pool, and later requests fail with
-HTTP 503. Direct Supavisor connections stay on `postgres.js` with prepared
-statements disabled.
+a node-postgres client for that call only, then closes it. A shared pool survives
+a frozen Worker isolate and holds Hyperdrive's origin slots until later requests
+fail with HTTP 503. `postgres.js` is also unsuitable here: with prepared
+statements disabled, Drizzle sends type-lookup messages that Hyperdrive's
+transaction pool drops, and those hung connections fill the same slots. Direct
+Supavisor connections stay on `postgres.js` with prepared statements disabled.
 
 ## Continuous deployment
 

@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { Pool } from "pg";
+import { Client } from "pg";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { sql, type SQL } from "drizzle-orm";
@@ -15,22 +15,18 @@ export function databaseUrl() {
 type Database = ReturnType<typeof drizzle<typeof schema>>;
 let database: Database | undefined;
 let databaseKey = "";
+function hyperdrive() {
+  return process.env.DATABASE_SSL === "disable";
+}
 function connect(): Database {
-  // The Worker reaches Postgres through Hyperdrive and sets DATABASE_SSL=disable
-  // because that hop is plaintext. Hyperdrive's transaction pool drops the extra
-  // type-lookup messages postgres.js sends when prepared statements are off,
-  // and Drizzle always uses that path. node-postgres speaks the protocol
-  // Hyperdrive accepts. Direct Supabase pooler connections stay on postgres.js
-  // with prepared statements disabled.
-  if (process.env.DATABASE_SSL === "disable") {
-    const pool = new Pool({ connectionString: databaseUrl(), ssl: false, max: 1, connectionTimeoutMillis: 8_000, idleTimeoutMillis: 5_000 });
-    return drizzlePg(pool, { schema }) as unknown as Database;
-  }
+  // Direct Supavisor transaction mode cannot use prepared statements.
+  // The Worker never uses this client; Hyperdrive opens a pg client per call.
+  if (hyperdrive()) throw new Error("Hyperdrive connections are per request. Use withDatabase().");
   const client = postgres(databaseUrl(), { prepare: false, ssl: "require", max: 5, connect_timeout: 10, idle_timeout: 20 });
   return drizzle(client, { schema });
 }
 export function getDatabase() {
-  const key = `${process.env.DATABASE_SSL ?? "require"}\n${databaseUrl()}`;
+  const key = databaseUrl();
   if (!database || databaseKey !== key) {
     const previous = database as (Database & { $client?: { end: () => Promise<unknown> } }) | undefined;
     database = connect();
@@ -39,15 +35,29 @@ export function getDatabase() {
   }
   return database;
 }
+// A Worker isolate freezes with its sockets open. A shared pg pool therefore
+// keeps Hyperdrive origin slots checked out until the pool is full and later
+// requests fail. Each Hyperdrive call opens one client and closes it before
+// returning. postgres.js stays cached for local and script connections.
+export async function withDatabase<T>(run: (db: Database) => Promise<T>): Promise<T> {
+  if (!hyperdrive()) return run(getDatabase());
+  const client = new Client({ connectionString: databaseUrl(), ssl: false, connectionTimeoutMillis: 8_000 });
+  await client.connect();
+  try {
+    return await run(drizzlePg(client, { schema }) as unknown as Database);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
+}
 export type Transaction = Parameters<Parameters<ReturnType<typeof getDatabase>["transaction"]>[0]>[0];
 
 // The pooler connection is privileged. Every application query MUST run here.
 // LOCAL settings are scoped to this transaction and cannot leak across users.
 export async function withUser<T>(userId: string, callback: (tx: Transaction) => Promise<T>) {
-  return getDatabase().transaction(async tx => {
+  return withDatabase(db => db.transaction(async tx => {
     await applyUserContext(tx, userId);
     return callback(tx);
-  });
+  }));
 }
 
 export async function applyUserContext(tx: { execute(query: SQL): Promise<unknown> }, userId: string) {

@@ -121,7 +121,7 @@ export async function handleApi(request: Request) {
     if (code === "23505") return send({ error: "Bu kullanıcı adı zaten kullanımda." }, 409);
     if (code === "42501") return send({ error: "Bu işlem için yetkin yok." }, 403);
     if (code === "23514" || code === "23503" || code === "22P02") return send({ error: "Veriler geçersiz veya kayıt artık mevcut değil." }, 400);
-    console.error("API request failed", { code: code || "unavailable" });
+    console.error(`API request failed code=${code || "unavailable"}`);
     return send({ error: "İşlem tamamlanamadı. Veritabanı bağlantısını ve kurulumu kontrol et." }, 503);
   }
 }

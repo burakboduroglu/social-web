@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { getDatabase, type Transaction } from "./db/client";
+import { withDatabase, type Transaction } from "./db/client";
 import { mediaUploads, threadMedia } from "./db/schema";
 import { inspectImage, type ImageMetadata } from "./image-validation";
 import { HttpError, object, text } from "./validation";
@@ -49,7 +49,7 @@ export async function registerValidatedImage(tx: Transaction, userId: string, pa
   await tx.insert(mediaUploads).values({ objectPath: path, ownerId: userId, storageObjectId: rows[0].id, ...metadata });
 }
 type RegisterImage = (userId: string, path: string, metadata: ImageMetadata, download: () => Promise<Uint8Array>) => Promise<void>;
-export async function ingestImage(userId: string, bytes: Uint8Array, claimedType: string, storage: ImageStorage, supabaseUrl: string, register: RegisterImage = (owner, path, metadata, download) => getDatabase().transaction(tx => registerValidatedImage(tx, owner, path, metadata, download))): Promise<UploadImageResult> {
+export async function ingestImage(userId: string, bytes: Uint8Array, claimedType: string, storage: ImageStorage, supabaseUrl: string, register: RegisterImage = (owner, path, metadata, download) => withDatabase(db => db.transaction(tx => registerValidatedImage(tx, owner, path, metadata, download)))): Promise<UploadImageResult> {
   const metadata = inspectImage(bytes, claimedType);
   const extension = metadata.mimeType.split("/")[1];
   const objectPath = `${userId}/${crypto.randomUUID()}.${extension}`;
@@ -76,8 +76,8 @@ export async function removeImageRegistration(tx: Transaction, userId: string, p
   await tx.delete(mediaUploads).where(and(eq(mediaUploads.ownerId, userId), eq(mediaUploads.objectPath, path), eq(mediaUploads.cleanupPending, true)));
 }
 export async function removeImage(userId: string, value: unknown, storage: ImageStorage,
-  begin: (owner: string, path: string) => Promise<void> = (owner, path) => getDatabase().transaction(tx => beginImageCleanup(tx, owner, path)),
-  finish: (owner: string, path: string) => Promise<void> = (owner, path) => getDatabase().transaction(tx => removeImageRegistration(tx, owner, path))) {
+  begin: (owner: string, path: string) => Promise<void> = (owner, path) => withDatabase(db => db.transaction(tx => beginImageCleanup(tx, owner, path))),
+  finish: (owner: string, path: string) => Promise<void> = (owner, path) => withDatabase(db => db.transaction(tx => removeImageRegistration(tx, owner, path)))) {
   const path = ownImagePath(value, userId);
   await begin(userId, path);
   await storage.remove(path);
@@ -91,7 +91,7 @@ export async function oldImageRegistrations(tx: Transaction, userId: string) {
   )).orderBy(mediaUploads.createdAt).limit(20);
 }
 export async function cleanupOldImages(userId: string, storage: ImageStorage,
-  find: (owner: string) => Promise<{ path: string }[]> = owner => getDatabase().transaction(tx => oldImageRegistrations(tx, owner)),
+  find: (owner: string) => Promise<{ path: string }[]> = owner => withDatabase(db => db.transaction(tx => oldImageRegistrations(tx, owner))),
   remove: (owner: string, path: string, store: ImageStorage) => Promise<unknown> = removeImage) {
   const candidates = await find(userId);
   let removed = 0, failed = 0;
