@@ -30,7 +30,11 @@ export function publicConfig() {
   const url = process.env.SUPABASE_URL;
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) throw new HttpError(503, "Supabase bağlantısı henüz ayarlanmadı.");
-  return { url, publishableKey };
+  // Site key is public by design; the Turnstile secret lives in Supabase Auth.
+  // Ignore the example placeholder so a copied .env cannot block auth.
+  const configuredSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() ?? "";
+  const turnstileSiteKey = configuredSiteKey && !configuredSiteKey.startsWith("YOUR_") ? configuredSiteKey : "";
+  return { url, publishableKey, turnstileSiteKey };
 }
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
 let authClient: ReturnType<typeof createClient> | undefined;
@@ -67,10 +71,20 @@ export async function handleApi(request: Request) {
     }
     // getClaims verifies the signature and expiry with cached JWKS. Supabase
     // falls back to Auth-server verification for legacy symmetric signing keys.
-    const { data, error } = await timing.measure("auth", () => authClient!.auth.getClaims(bearer.slice(7)));
+    const token = bearer.slice(7);
+    const { data, error } = await timing.measure("auth", () => authClient!.auth.getClaims(token));
     const claims = data?.claims;
-    if (error || !claims || claims.role !== "authenticated" || typeof claims.sub !== "string" || claims.iss !== `${config.url}/auth/v1` || !(claims.aud === "authenticated" || (Array.isArray(claims.aud) && claims.aud.includes("authenticated")))) throw new HttpError(401, "Oturum geçersiz. Tekrar giriş yap.");
-    const userId = uuid(claims.sub);
+    const claimsValid = !error && !!claims && claims.role === "authenticated" && typeof claims.sub === "string"
+      && claims.iss === `${config.url}/auth/v1` && (claims.aud === "authenticated" || (Array.isArray(claims.aud) && claims.aud.includes("authenticated")));
+    // A rotated signing key can leave the cached JWKS stale, so ask the Auth
+    // server once before treating a signed-in person as signed out.
+    let userId: string;
+    if (claimsValid) userId = uuid(claims.sub);
+    else {
+      const { data: verified, error: verifyError } = await timing.measure("auth-fallback", () => authClient!.auth.getUser(token));
+      if (verifyError || !verified.user) throw new HttpError(401, "Oturum geçersiz. Tekrar giriş yap.");
+      userId = uuid(verified.user.id);
+    }
     if (url.pathname === "/api/media/images" || url.pathname === "/api/media/images/cleanup") {
       const storage = imageStorage(config, bearer);
       if (url.pathname === "/api/media/images" && request.method === "POST") {

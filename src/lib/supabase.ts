@@ -1,9 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export let supabase: SupabaseClient;
+export let authConfig: { url: string; publishableKey: string; turnstileSiteKey: string };
 export async function initializeAuth() {
   const response = await fetch("/api/config");
   if (!response.ok) throw new Error("Supabase bağlantı ayarları yüklenemedi.");
-  const config = await response.json() as { url: string; publishableKey: string };
+  const config = await response.json() as { url: string; publishableKey: string; turnstileSiteKey?: unknown };
+  authConfig = {
+    url: config.url,
+    publishableKey: config.publishableKey,
+    turnstileSiteKey: typeof config.turnstileSiteKey === "string" ? config.turnstileSiteKey : "",
+  };
   supabase = createClient(config.url, config.publishableKey, { auth: { flowType: "pkce", detectSessionInUrl: false } });
 }
 export async function uploadAvatar(file: File) {

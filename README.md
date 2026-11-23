@@ -80,18 +80,31 @@ cd social-web
 bun install
 ```
 
-Create an ignored `.env` with **only the three Supabase settings**:
+Create an ignored `.env` with the three Supabase settings plus the optional
+Turnstile site key:
 
 ```dotenv
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLIC_KEY
 DATABASE_URL=postgresql://postgres.YOUR_PROJECT_REF:YOUR_URL_ENCODED_PASSWORD@YOUR_POOLER_HOST:6543/postgres
+TURNSTILE_SITE_KEY=YOUR_TURNSTILE_SITE_KEY
 ```
 
 Copy the shared transaction-mode pooler connection string from Supabase.
 Percent-encode reserved characters in the database password. The CLI login does
-not recover that password. Only the URL and publishable key reach the browser;
-`DATABASE_URL` stays in the Bun process.
+not recover that password. Only the URL, publishable key and Turnstile site key
+reach the browser; `DATABASE_URL` stays in the Bun process.
+
+To require Cloudflare Turnstile on sign-up and sign-in, enable CAPTCHA protection
+under Authentication → Attack Protection in Supabase with the Turnstile secret
+key, then restart the API. The site key is served by `/api/config`; when it is
+absent the widget stays hidden.
+
+Cloudflare only accepts FQDNs in a widget's hostname allowlist, so `localhost`
+cannot be added. For local development use Cloudflare's always-pass test pair:
+site key `1x00000000000000000000AA` in `.env` and secret
+`1x0000000000000000000000000000000AA` in Supabase. Restore the real keys before
+deployment, otherwise the challenge always passes.
 
 ```sh
 supabase login

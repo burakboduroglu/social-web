@@ -47,6 +47,7 @@ export function Avatar({ src, name, username, large = false }: { src?: string | 
   return <img className={className} src={src} alt={name} loading="lazy" onError={() => setBrokenSource(src)} />;
 }
 export function ErrorNotice({ message }: { message: string }) { return message ? <p role="alert" className="error">{message}</p> : null; }
+export function SuccessNotice({ message }: { message: string }) { return message ? <p role="status" className="notice notice-success">{message}</p> : null; }
 export function Empty({ children, kind = "empty", description }: { children: ReactNode; kind?: "empty" | "default" | "search" | "people" | "messages"; description?: string }) {
   const title = typeof children === "string" ? children : "Henüz içerik yok";
   const copy = description ?? (kind === "search" ? "Farklı bir isim veya kullanıcı adıyla tekrar arayabilirsin." : kind === "messages" ? "Yeni bir hareket olduğunda burada görünecek." : "İlk paylaşımı yaparak sohbeti başlatabilirsin.");
