@@ -11,6 +11,13 @@ The Workers socket API always verifies server certificates and has no
 fails the TLS handshake. Hyperdrive terminates that connection inside Cloudflare
 and gives the Worker a connection string it can trust.
 
+The Worker sets `DATABASE_SSL=disable` for that hop, and `server/db/client.ts` uses
+node-postgres there. Hyperdrive's transaction pool drops the extra type-lookup
+messages Drizzle sends through `postgres.js` when prepared statements are off.
+Those hung client connections fill the origin pool, and later requests fail with
+HTTP 503. Direct Supavisor connections stay on `postgres.js` with prepared
+statements disabled.
+
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` typechecks, tests, builds and deploys on every push
