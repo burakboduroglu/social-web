@@ -10,7 +10,7 @@ Invite-only social app: React 19 + TanStack Router in `src/`, Bun API in `server
 - Live DB/RLS check: `bun run db:check`
 - Create invite: `bun run db:invite [days] [uses]`
 - Build: `bun run build`
-- Deploy: `bun run worker:deploy` (Cloudflare Worker, see `docs/deployment.md`)
+- Deploy: push to `main`; GitHub Actions runs `.github/workflows/deploy.yml` (see `docs/deployment.md`). Manual fallback: `bun run worker:deploy`
 
 ## Rules
 

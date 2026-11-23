@@ -11,6 +11,31 @@ The Workers socket API always verifies server certificates and has no
 fails the TLS handshake. Hyperdrive terminates that connection inside Cloudflare
 and gives the Worker a connection string it can trust.
 
+## Continuous deployment
+
+`.github/workflows/deploy.yml` typechecks, tests, builds and deploys on every push
+to `main`. It needs two repository secrets:
+
+| Secret                  | Value                                                   |
+| ----------------------- | ------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | API token with **Workers Scripts: Edit**                |
+| `CLOUDFLARE_ACCOUNT_ID` | `e9bdd743b2850bff64fb314caa934574`                       |
+
+Create the token at <https://dash.cloudflare.com/profile/api-tokens> → *Create
+Token* → *Edit Cloudflare Workers* template (or a custom token with
+`Account → Workers Scripts → Edit`), scoped to the account above. Then:
+
+```sh
+gh secret set CLOUDFLARE_API_TOKEN --repo burakboduroglu/social-web
+gh secret set CLOUDFLARE_ACCOUNT_ID --repo burakboduroglu/social-web
+```
+
+Worker secrets and the Hyperdrive binding live in Cloudflare, not in the repo, and
+are preserved by each deploy. Do not add them to GitHub.
+
+`wrangler deploy` also runs from a workstation (`bun run worker:deploy`) and
+bypasses the workflow; use it only for the first deploy or an emergency.
+
 ## One-time setup
 
 1. Log in: `bunx wrangler login`.
