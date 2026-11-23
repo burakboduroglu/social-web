@@ -2,6 +2,8 @@
 
 The application now renders native pixel scenes from `src/components/illustration.tsx` and seeded characters from `src/components/pixel-character.tsx`. The SVG files below are retained legacy assets and are not loaded by the current illustration component.
 
+New pixel art sources and their licensing notes are tracked in `docs/brand.md`.
+
 ## Legacy SVG assets
 
 Five unDraw illustrations by Katerina Limpitsouni, reused from the user-designated Hezarfen frontend reference. Source: https://github.com/Hezarfen-Co/hezarfen_frontend/tree/main/src/assets/illustrations

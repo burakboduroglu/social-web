@@ -7,3 +7,17 @@ The social-web mark uses two overlapping conversation shapes in lavender (`#b8ab
 - `src/brand.tsx`: shared accessible navigation brand for the auth screens and app sidebar.
 
 Source brief and SVGs were prepared in the studio workspace with a Luna subagent. Affinity and raster image generation were not used. Exported project assets are stored in this repository and do not depend on the studio workspace at runtime.
+
+## Pixel illustration sources
+
+UI icons use the MIT-licensed Pixelarticons library. Empty states, error scenes and seeded avatars are native pixel components (`src/components/illustration.tsx`, `src/components/pixel-character.tsx`), so they stay crisp, themeable and dependency-free.
+
+Reference and stock sources for new pixel artwork:
+
+| Source | Use | Licence note |
+| --- | --- | --- |
+| <https://www.istockphoto.com/tr/illüstrasyon/pixel-art> | Paid stock illustrations | Per-asset iStock licence. Do not hotlink or redistribute previews. |
+| <https://pixeliconlibrary.com> | Free pixel icon sets | Check each set's licence; some require attribution. |
+| <https://www.magnific.com/free-photos-vectors/pixel-illustration> | Free vectors and photos (Freepik family) | Free tier usually requires attribution; paid plans differ. |
+
+Download chosen assets into the repository, record the source and licence next to the file, and match the existing dark palette (`#b8abff`, `#eeedf5`). Prefer native pixel components for small UI states; use raster or vector art only when it earns the extra weight.
