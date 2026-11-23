@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "social-web",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAGLgv-I7jHbWyJly"
+  },
+  // Supabase's Postgres certificate is signed by a private CA that Workers
+  // sockets cannot verify, so production connects through Hyperdrive.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "7099e9adddb34d5f8423a7ba2ad2ec9e"
+    }
+  ]
+}

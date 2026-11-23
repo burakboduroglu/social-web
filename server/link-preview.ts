@@ -1,6 +1,3 @@
-import { lookup as dnsLookup } from "node:dns/promises";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import type { LookupFunction } from "node:net";
 import type { LinkPreviewData } from "../shared/link-preview";
@@ -12,6 +9,9 @@ type Dependencies = { resolve?: (hostname: string) => Promise<Address[]>; transp
 const HTML_LIMIT = 256 * 1024;
 const IMAGE_LIMIT = 512 * 1024;
 const RASTER_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+// Workers cannot resolve DNS or open raw sockets, so it fetches through the
+// platform transport and relies on Cloudflare blocking private egress.
+export const isWorkersRuntime = typeof navigator !== "undefined" && /Cloudflare-Workers/.test(navigator.userAgent);
 
 export function isPublicAddress(address: string): boolean {
   const family = isIP(address);
@@ -43,54 +43,97 @@ export function validatePreviewUrl(value: string): URL {
   return url;
 }
 
-export const pinnedTransport: Transport = (url, addresses, signal, kind) => new Promise((resolve, reject) => {
-  if (signal.aborted) { reject(new Error("Preview timeout")); return; }
-  const selected = addresses[0];
-  const lookup: LookupFunction = (_hostname, options, callback) => {
-    // Never perform a second lookup: these addresses were checked before opening the socket.
-    if (options.all) callback(null, addresses);
-    else (callback as unknown as (error: null, address: string, family: number) => void)(null, selected.address, selected.family);
-  };
-  const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
-    lookup, family: selected.family, agent: false, maxHeaderSize: 16 * 1024,
-    headers: { "User-Agent": "SocialWeb-LinkPreview/1.0", Accept: kind === "html" ? "text/html,application/xhtml+xml" : "image/avif,image/webp,image/png,image/jpeg,image/gif", "Accept-Encoding": "identity" },
-  }, response => {
-    const status = response.statusCode || 0;
-    const contentType = String(response.headers["content-type"] || "");
-    const mime = contentType.split(";")[0].trim().toLowerCase();
-    const location = response.headers.location;
-    if ([301, 302, 303, 307, 308].includes(status)) {
-      response.destroy(); resolve({ status, location, contentType, body: new Uint8Array() }); return;
-    }
-    const encoding = response.headers["content-encoding"];
-    const limit = kind === "html" ? HTML_LIMIT : IMAGE_LIMIT;
-    const allowedType = kind === "html" ? ["text/html", "application/xhtml+xml"].includes(mime) : RASTER_TYPES.has(mime);
-    if (status < 200 || status >= 300 || !allowedType || (encoding && encoding !== "identity") || Number(response.headers["content-length"]) > limit) {
-      response.destroy(); reject(new Error("Preview response unavailable")); return;
-    }
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
-    response.on("data", chunk => {
-      const buffer = new Uint8Array(chunk);
-      bytes += buffer.length;
-      if (bytes > limit) { response.destroy(); request.destroy(); reject(new Error("Preview response too large")); return; }
-      chunks.push(buffer);
+export const pinnedTransport: Transport = async (url, addresses, signal, kind) => {
+  if (signal.aborted) throw new Error("Preview timeout");
+  // Loaded lazily so the Worker bundle never imports node's socket clients.
+  const [{ request: httpRequest }, { request: httpsRequest }] = await Promise.all([import("node:http"), import("node:https")]);
+  return new Promise((resolve, reject) => {
+    const selected = addresses[0];
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+      // Never perform a second lookup: these addresses were checked before opening the socket.
+      if (options.all) callback(null, addresses);
+      else (callback as unknown as (error: null, address: string, family: number) => void)(null, selected.address, selected.family);
+    };
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+      lookup, family: selected.family, agent: false, maxHeaderSize: 16 * 1024,
+      headers: { "User-Agent": "SocialWeb-LinkPreview/1.0", Accept: kind === "html" ? "text/html,application/xhtml+xml" : "image/avif,image/webp,image/png,image/jpeg,image/gif", "Accept-Encoding": "identity" },
+    }, response => {
+      const status = response.statusCode || 0;
+      const contentType = String(response.headers["content-type"] || "");
+      const mime = contentType.split(";")[0].trim().toLowerCase();
+      const location = response.headers.location;
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        response.destroy(); resolve({ status, location, contentType, body: new Uint8Array() }); return;
+      }
+      const encoding = response.headers["content-encoding"];
+      const limit = kind === "html" ? HTML_LIMIT : IMAGE_LIMIT;
+      const allowedType = kind === "html" ? ["text/html", "application/xhtml+xml"].includes(mime) : RASTER_TYPES.has(mime);
+      if (status < 200 || status >= 300 || !allowedType || (encoding && encoding !== "identity") || Number(response.headers["content-length"]) > limit) {
+        response.destroy(); reject(new Error("Preview response unavailable")); return;
+      }
+      const chunks: Uint8Array[] = [];
+      let bytes = 0;
+      response.on("data", chunk => {
+        const buffer = new Uint8Array(chunk);
+        bytes += buffer.length;
+        if (bytes > limit) { response.destroy(); request.destroy(); reject(new Error("Preview response too large")); return; }
+        chunks.push(buffer);
+      });
+      response.on("end", () => {
+        const body = new Uint8Array(bytes);
+        let offset = 0;
+        for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+        resolve({ status, contentType, body });
+      });
+      response.on("error", reject);
+      response.on("aborted", () => reject(new Error("Preview response aborted")));
     });
-    response.on("end", () => {
-      const body = new Uint8Array(bytes);
-      let offset = 0;
-      for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
-      resolve({ status, contentType, body });
-    });
-    response.on("error", reject);
-    response.on("aborted", () => reject(new Error("Preview response aborted")));
+    const abort = () => request.destroy(new Error("Preview timeout"));
+    signal.addEventListener("abort", abort, { once: true });
+    request.on("close", () => signal.removeEventListener("abort", abort));
+    request.on("error", reject);
+    request.end();
   });
-  const abort = () => request.destroy(new Error("Preview timeout"));
-  signal.addEventListener("abort", abort, { once: true });
-  request.on("close", () => signal.removeEventListener("abort", abort));
-  request.on("error", reject);
-  request.end();
-});
+};
+
+// Worker transport: the platform fetch follows no redirects on its own and the
+// caller revalidates every hop before requesting it.
+export const fetchTransport: Transport = async (url, _addresses, signal, kind) => {
+  const response = await fetch(url.href, {
+    signal,
+    redirect: "manual",
+    headers: { "User-Agent": "SocialWeb-LinkPreview/1.0", Accept: kind === "html" ? "text/html,application/xhtml+xml" : "image/avif,image/webp,image/png,image/jpeg,image/gif", "Accept-Encoding": "identity" },
+  });
+  const contentType = response.headers.get("content-type") || "";
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    await response.body?.cancel();
+    return { status: response.status, location: response.headers.get("location") || undefined, contentType, body: new Uint8Array() };
+  }
+  const mime = contentType.split(";")[0].trim().toLowerCase();
+  const encoding = response.headers.get("content-encoding");
+  const limit = kind === "html" ? HTML_LIMIT : IMAGE_LIMIT;
+  const allowedType = kind === "html" ? ["text/html", "application/xhtml+xml"].includes(mime) : RASTER_TYPES.has(mime);
+  if (response.status < 200 || response.status >= 300 || !allowedType || (encoding && encoding !== "identity") || Number(response.headers.get("content-length")) > limit) {
+    await response.body?.cancel();
+    throw new Error("Preview response unavailable");
+  }
+  const reader = response.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  if (reader) {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > limit) { await reader.cancel(); throw new Error("Preview response too large"); }
+      chunks.push(value);
+    }
+  }
+  const body = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+  return { status: response.status, contentType, body };
+};
 
 function decodeEntities(value: string): string {
   const entities: Record<string, string> = { amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", nbsp: " " };
@@ -139,13 +182,15 @@ async function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 
 export function createLinkPreviewService(dependencies: Dependencies = {}) {
-  const resolveHost = dependencies.resolve || (hostname => dnsLookup(hostname, { all: true, verbatim: true }));
-  const transport = dependencies.transport || pinnedTransport;
+  const resolveHost = dependencies.resolve ?? (isWorkersRuntime ? null : (hostname: string) => import("node:dns/promises").then(({ lookup }) => lookup(hostname, { all: true, verbatim: true })));
+  const transport = dependencies.transport ?? (isWorkersRuntime ? fetchTransport : pinnedTransport);
   const now = dependencies.now || Date.now;
   const cache = new Map<string, { expires: number; preview: LinkPreviewData | null }>();
   const pending = new Map<string, Promise<LinkPreviewData | null>>();
 
   async function publicAddresses(url: URL, signal: AbortSignal): Promise<Address[]> {
+    // Without a resolver (Workers) the platform transport is the boundary.
+    if (!resolveHost) return [];
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     const addresses = isIP(hostname) ? [{ address: hostname, family: isIP(hostname) }] : await abortable(resolveHost(hostname), signal);
     if (!addresses.length || addresses.some(item => !isPublicAddress(item.address) || item.family !== isIP(item.address))) throw new Error("Non-public DNS response");

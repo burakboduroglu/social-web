@@ -1,0 +1,7 @@
+# Local values for `wrangler dev`. Copy to `.dev.vars` and fill in.
+# Production keeps the same names: `wrangler secret put DATABASE_URL` and so on.
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+DATABASE_URL=
+# Cloudflare's always-pass test key, so localhost works without a real hostname.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA

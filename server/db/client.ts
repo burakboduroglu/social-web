@@ -10,7 +10,10 @@ export function databaseUrl() {
 }
 let database: ReturnType<typeof connect> | undefined;
 function connect() {
-  const client = postgres(databaseUrl(), { prepare: false, ssl: "require", max: 5, connect_timeout: 10, idle_timeout: 20 });
+  // Hyperdrive terminates TLS at the edge and speaks plaintext on its internal
+  // hop, so the Worker sets DATABASE_SSL=disable. Direct connections keep TLS.
+  const ssl = process.env.DATABASE_SSL === "disable" ? false : "require" as const;
+  const client = postgres(databaseUrl(), { prepare: false, ssl, max: 5, connect_timeout: 10, idle_timeout: 20 });
   return drizzle(client, { schema });
 }
 export function getDatabase() { return database ??= connect(); }

@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "types": ["bun", "vite/client"]
   },
-  "include": ["src", "server", "shared", "scripts", "tests", "vite.config.ts", "drizzle.config.ts"]
+  "include": ["src", "server", "shared", "scripts", "tests", "worker", "vite.config.ts", "drizzle.config.ts"]
 }
