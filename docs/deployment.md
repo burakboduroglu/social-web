@@ -13,28 +13,25 @@ and gives the Worker a connection string it can trust.
 
 ## Continuous deployment
 
-`.github/workflows/deploy.yml` typechecks, tests, builds and deploys on every push
-to `main`. It needs two repository secrets:
+Cloudflare Workers Builds owns deployment: every push to `main` builds the app and
+runs `wrangler deploy` with a build token Cloudflare creates itself, so no API
+token is stored in GitHub. Connect the repository once:
 
-| Secret                  | Value                                                   |
-| ----------------------- | ------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | API token with **Workers Scripts: Edit**                |
-| `CLOUDFLARE_ACCOUNT_ID` | `e9bdd743b2850bff64fb314caa934574`                       |
-
-Create the token at <https://dash.cloudflare.com/profile/api-tokens> → *Create
-Token* → *Edit Cloudflare Workers* template (or a custom token with
-`Account → Workers Scripts → Edit`), scoped to the account above. Then:
-
-```sh
-gh secret set CLOUDFLARE_API_TOKEN --repo burakboduroglu/social-web
-gh secret set CLOUDFLARE_ACCOUNT_ID --repo burakboduroglu/social-web
-```
+1. Cloudflare dashboard → **Workers & Pages** → `social-web` → **Settings** → **Builds** → **Connect**.
+2. Install the Cloudflare Workers GitHub app for `burakboduroglu/social-web` only.
+3. Production branch `main`, root directory `/`.
+4. Build command `bun run build`, deploy command `bunx wrangler deploy`.
+5. Add the build variable `BUN_VERSION=1.4.4`, matching `packageManager` in
+   `package.json`. The build image's default Bun can lag behind the lockfile
+   version and fail with `Unknown lockfile version`.
+6. **Previews** tab: leave preview builds off unless pull-request previews are wanted.
 
 Worker secrets and the Hyperdrive binding live in Cloudflare, not in the repo, and
-are preserved by each deploy. Do not add them to GitHub.
+each deploy preserves them. Do not copy them into build variables.
 
-`wrangler deploy` also runs from a workstation (`bun run worker:deploy`) and
-bypasses the workflow; use it only for the first deploy or an emergency.
+`.github/workflows/ci.yml` runs typecheck, tests and the build on every push and
+pull request; it does not deploy. `bun run worker:deploy` still deploys from a
+workstation and bypasses both; use it only for the first deploy or an emergency.
 
 ## One-time setup
 

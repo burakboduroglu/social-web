@@ -1,19 +1,20 @@
-name: Deploy
+name: CI
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: deploy
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,12 +34,3 @@ jobs:
 
       - name: Build
         run: bun run build
-
-      # Worker secrets (SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, DATABASE_URL)
-      # live in Cloudflare and survive deploys; this only ships code and assets.
-      - name: Deploy
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
