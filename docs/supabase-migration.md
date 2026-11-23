@@ -3,7 +3,7 @@
 ## Runtime
 
 - `src/`: React UI, code-based TanStack Router routes/loaders, Tailwind/shadcn styling and browser Supabase client.
-- `server/`: Bun HTTP server, authenticated JSON API and Drizzle/Postgres queries.
+- `server/`: authenticated JSON API and Drizzle/Postgres queries. Locally this is the Bun server; production runs the same module inside a Cloudflare Worker (`worker/index.ts`).
 - `server/db/schema.ts`: typed models matching the SQL migrations.
 - `shared/types.ts`: response contracts; database imports are type-only and erased from the browser bundle.
 - `supabase/migrations/`: canonical SQL schema, grants, RLS, Auth triggers, invitation rules and Storage policies.
@@ -30,8 +30,8 @@ Next.js server components/actions/middleware and Supabase SSR cookies are remove
 - The configured Drizzle pooler connection has been verified locally.
 - No legacy users or content have been imported. Old user IDs, passwords and media need a separate mapping/import plan.
 - Password recovery, OAuth and email/password editing are not included in this version.
-- Remote GitHub repository/deployment names remain unchanged; no push or production deployment was performed.
-- Auth Site URL and redirect URLs currently target local development; change them for a deployment.
+- Production is the Cloudflare Worker at `https://social.burakboduroglu.com.tr`. Pushing `main` deploys it; see [deployment](deployment.md).
+- `supabase/config.toml` still lists only local Auth URLs. The hosted project must allow `https://social.burakboduroglu.com.tr` as the Site URL and `https://social.burakboduroglu.com.tr/auth/confirm` as a redirect, or sign-up confirmation links are rejected. Do not `config push` the local file over that remote setting.
 
 ## References
 

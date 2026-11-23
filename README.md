@@ -150,14 +150,16 @@ Delivery and rate limits are those of the configured Supabase email provider.
 browser ──▶ React + TanStack Router       navigation, forms, responsive UI
         ├─▶ Supabase Auth                email/password and sessions
         ├─▶ Supabase Storage             avatars and personal GIF uploads
-        └─▶ Bun /api                     verifies the bearer token
-              └─▶ Drizzle + pooler       transaction-local identity + RLS
+        └─▶ /api                         verifies the bearer token
+              └─▶ Drizzle + Postgres     transaction-local identity + RLS
                     └─▶ Supabase Postgres
 ```
 
-Vite proxies `/api` to port 3001 in development. In production, the Bun server
-serves both the built frontend and API from port 3001. A static-only host is not
-sufficient for this architecture.
+Vite proxies `/api` to port 3001 in development. In production, one Cloudflare
+Worker serves the built frontend and the same API. Postgres is reached through
+Hyperdrive, because Workers cannot verify Supabase's private database CA.
+A static-only host is not sufficient for this architecture. See
+[deployment](docs/deployment.md).
 
 SQL migrations are the source of truth for schema, policies and Auth triggers.
 Drizzle models provide typed queries; do not replace the migrations with
@@ -198,8 +200,10 @@ Tests execute the actual SQL migrations in PGlite and exercise invitation
 consumption, row ownership, pooled identities, Storage policies, API queries,
 media URL parsing and error classification.
 
-Before deployment, configure the public Auth Site URL and callback URLs, apply
-migrations and place the Bun server behind HTTPS. See
+Before deployment, apply migrations and set the Supabase Auth Site URL and
+redirect allow list to the Worker origin (`https://<origin>/auth/confirm`).
+`supabase/config.toml` keeps the local development URLs. Pushing to `main`
+runs the checks and deploys. See [deployment](docs/deployment.md) and
 [architecture and migration notes](docs/supabase-migration.md).
 
 ## Current boundaries
