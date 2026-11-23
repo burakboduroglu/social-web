@@ -13,25 +13,34 @@ and gives the Worker a connection string it can trust.
 
 ## Continuous deployment
 
-Cloudflare Workers Builds owns deployment: every push to `main` builds the app and
-runs `wrangler deploy` with a build token Cloudflare creates itself, so no API
-token is stored in GitHub. Connect the repository once:
+`.github/workflows/deploy.yml` typechecks, tests, builds and deploys on every push
+to `main`, using a Cloudflare API token stored as a repository secret:
 
-1. Cloudflare dashboard → **Workers & Pages** → `social-web` → **Settings** → **Builds** → **Connect**.
-2. Install the Cloudflare Workers GitHub app for `burakboduroglu/social-web` only.
-3. Production branch `main`, root directory `/`.
-4. Build command `bun run build`, deploy command `bunx wrangler deploy`.
-5. Add the build variable `BUN_VERSION=1.4.4`, matching `packageManager` in
-   `package.json`. The build image's default Bun can lag behind the lockfile
-   version and fail with `Unknown lockfile version`.
-6. **Previews** tab: leave preview builds off unless pull-request previews are wanted.
+| Secret                  | Value                                    |
+| ----------------------- | ---------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | API token with **Workers Scripts: Edit** |
+| `CLOUDFLARE_ACCOUNT_ID` | `e9bdd743b2850bff64fb314caa934574`        |
+
+Create the token at <https://dash.cloudflare.com/profile/api-tokens> → *Create
+Token* → *Edit Cloudflare Workers* template, scoped to the account above, then:
+
+```sh
+gh secret set CLOUDFLARE_API_TOKEN --repo burakboduroglu/social-web
+gh secret set CLOUDFLARE_ACCOUNT_ID --repo burakboduroglu/social-web
+```
 
 Worker secrets and the Hyperdrive binding live in Cloudflare, not in the repo, and
-each deploy preserves them. Do not copy them into build variables.
+each deploy preserves them. Do not add them to GitHub.
 
-`.github/workflows/ci.yml` runs typecheck, tests and the build on every push and
-pull request; it does not deploy. `bun run worker:deploy` still deploys from a
-workstation and bypasses both; use it only for the first deploy or an emergency.
+`.github/workflows/ci.yml` runs the same checks on pull requests without deploying.
+`bun run worker:deploy` still deploys from a workstation and bypasses both; use it
+only for the first deploy or an emergency.
+
+Cloudflare Workers Builds is an alternative to the token: connect the repository
+under **Settings → Builds**, set the build command to `bun run build` and the deploy
+command to `bunx wrangler deploy`, and pin the build variable `BUN_VERSION=1.4.4`
+(the build image default can lag behind the lockfile version). Use one mechanism,
+not both, or every push deploys twice.
 
 ## One-time setup
 
