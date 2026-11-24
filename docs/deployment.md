@@ -19,6 +19,15 @@ statements disabled, Drizzle sends type-lookup messages that Hyperdrive's
 transaction pool drops, and those hung connections fill the same slots. Direct
 Supavisor connections stay on `postgres.js` with prepared statements disabled.
 
+Hyperdrive pools connections itself, so its origin must be Supabase's **session
+pooler on port 5432**, not the transaction pooler on 6543. Supavisor in
+transaction mode rejects Hyperdrive's multiplexed connections with
+`58000 Tried to recycle a connection still in a transaction`, then exhausts the
+project pool and answers every API call with
+`Timed out while waiting for an open slot in the pool`. `.env` keeps the
+transaction pooler for local scripts and tests; only the Hyperdrive configuration
+uses session mode.
+
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` typechecks, tests, builds and deploys on every push
@@ -58,21 +67,24 @@ not both, or every push deploys twice.
    bunx wrangler secret put SUPABASE_URL
    bunx wrangler secret put SUPABASE_PUBLISHABLE_KEY
    ```
-3. Export the Supabase root CA from the pooler chain:
+3. Export the Supabase root CA from the session pooler chain:
    ```sh
    echo | openssl s_client -starttls postgres \
-     -connect aws-1-eu-central-1.pooler.supabase.com:6543 \
+     -connect aws-1-eu-central-1.pooler.supabase.com:5432 \
      -servername aws-1-eu-central-1.pooler.supabase.com -showcerts 2>/dev/null \
      | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' > supabase-ca.pem
    bunx wrangler cert upload certificate-authority --ca-cert supabase-ca.pem --name supabase-root-2021
    ```
-4. Create the Hyperdrive configuration with the pooler connection string and the
-   uploaded CA. The direct host is IPv6-only, so use the pooler:
+4. Create the Hyperdrive configuration with the **session pooler** connection
+   string and the uploaded CA. The direct host is IPv6-only and the transaction
+   pooler breaks Hyperdrive's multiplexing, so use port 5432:
    ```sh
    bunx wrangler hyperdrive create social-web \
-     --connection-string="postgres://postgres.<ref>:<password>@aws-1-eu-central-1.pooler.supabase.com:6543/postgres" \
+     --connection-string="postgres://postgres.<ref>:<password>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres" \
      --sslmode verify-full --ca-certificate-id <ca-id>
    ```
+   To repair an existing configuration, repeat the command with
+   `bunx wrangler hyperdrive update <id>` and the same flags.
 5. Add the returned id to `wrangler.jsonc`:
    ```jsonc
    "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<id>" }]

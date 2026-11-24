@@ -157,7 +157,10 @@ browser ──▶ React + TanStack Router       navigation, forms, responsive UI
 
 Vite proxies `/api` to port 3001 in development. In production, one Cloudflare
 Worker serves the built frontend and the same API. Postgres is reached through
-Hyperdrive, because Workers cannot verify Supabase's private database CA.
+Hyperdrive, because Workers cannot verify Supabase's private database CA. The
+Hyperdrive origin is Supabase's session pooler on port 5432: Hyperdrive pools
+connections itself, and the transaction pooler answers it with
+`58000 Tried to recycle a connection still in a transaction`.
 A static-only host is not sufficient for this architecture. See
 [deployment](docs/deployment.md).
 
