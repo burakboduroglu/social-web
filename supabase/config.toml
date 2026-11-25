@@ -1,9 +1,37 @@
 project_id = "social-web"
 
 [auth]
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5174/auth/confirm", "http://127.0.0.1:5174/auth/confirm", "http://localhost:5173/auth/confirm", "http://127.0.0.1:5173/auth/confirm", "http://localhost:3001/auth/confirm", "http://127.0.0.1:3001/auth/confirm"]
+# Production origin. Confirmation links land here unless the client sends its own.
+site_url = "https://social.burakboduroglu.com.tr"
+additional_redirect_urls = [
+  "https://social.burakboduroglu.com.tr/auth/confirm",
+  "https://social-web.burakboduroglu0.workers.dev/auth/confirm",
+  "http://localhost:5173/auth/confirm",
+  "http://127.0.0.1:5173/auth/confirm",
+  "http://localhost:5174/auth/confirm",
+  "http://127.0.0.1:5174/auth/confirm",
+  "http://localhost:3001/auth/confirm",
+  "http://127.0.0.1:3001/auth/confirm",
+]
 minimum_password_length = 8
 
 [auth.email]
 enable_confirmations = true
+
+# Turnstile is enforced by Supabase Auth. Local review of the UI requires
+# temporarily setting this to false (or the always-pass test key pair), so always
+# check `supabase config diff` before pushing this file to the hosted project.
+[auth.captcha]
+enabled = true
+
+# Supabase rejects custom email templates on the free plan with the default
+# email provider ("entitlement_required: auth.email_templates"). Uncomment after
+# upgrading the project or configuring custom SMTP; the markup lives in
+# supabase/templates/.
+# [auth.email.template.confirmation]
+# subject = "social-web · E-postanı doğrula"
+# content_path = "./supabase/templates/confirmation.html"
+#
+# [auth.email.template.recovery]
+# subject = "social-web · Şifreni sıfırla"
+# content_path = "./supabase/templates/recovery.html"
