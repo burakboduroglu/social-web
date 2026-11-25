@@ -7,6 +7,8 @@ import { Brand } from "../brand";
 import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { authConfig, supabase } from "../lib/supabase";
+import { api } from "../lib/api";
+import type { Me } from "../../shared/types";
 import { ErrorNotice, SuccessNotice, errorMessage } from "../ui";
 
 // Turn Supabase auth failures into short Turkish copy the person can act on.
@@ -45,7 +47,13 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         : await supabase.auth.signInWithPassword({ ...credentials, options: captchaToken ? { captchaToken } : undefined });
       if (result.error) throw new Error(authErrorMessage(result.error, signup));
       if (signup && !result.data.session) { clearSecrets(); setMessage("Kaydını tamamlamak için e-postana gelen doğrulama bağlantısını aç."); }
-      else await navigate({ to: signup ? "/onboarding" : "/" });
+      else if (signup) await navigate({ to: "/onboarding", replace: true });
+      else {
+        // Signing in should land where the account is: unfinished profiles finish
+        // onboarding first instead of flashing the feed.
+        const me = await api<Me>("/me").catch(() => null);
+        await navigate({ to: me && !me.profile.onboarded ? "/onboarding" : "/", replace: true });
+      }
     } catch (e) {
       clearSecrets();
       // Turnstile tokens are single-use; a failed attempt needs a fresh challenge.

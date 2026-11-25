@@ -50,6 +50,11 @@ try {
       const path = router.state.location.pathname;
       if (!path.startsWith("/sign-") && !path.startsWith("/auth/")) void router.navigate({ to: "/sign-in", replace: true });
     }
+    // A session that arrives in another tab (confirmation link) should also move
+    // this one; the authenticated layout then sends new members to onboarding.
+    if (event === "SIGNED_IN" && router.state.location.pathname.startsWith("/sign-")) {
+      void router.navigate({ to: "/", replace: true });
+    }
   });
   root.render(<><RouterProvider router={router} /><ToastViewport /></>);
 } catch (error) {

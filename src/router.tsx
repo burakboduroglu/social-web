@@ -23,6 +23,7 @@ import { FollowListPage } from "./components/follow-list";
 import { useContentLoading } from "./components/loading";
 import { useState, useEffect } from "react";
 import { createRootRoute, createRoute, createRouter, Outlet, Link, redirect, useRouter, useRouterState } from "@tanstack/react-router";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { api } from "./lib/api";
 import { supabase } from "./lib/supabase";
 import type { Preferences, Me, ProfileListPage, ProfilePage, TimelinePage } from "../shared/types";
@@ -34,10 +35,13 @@ import { HomePage, ThreadPageView, ProfilePageView, ProfileEditor, ExplorePage, 
 import { Avatar, ErrorNotice, Icon, useMe } from "./ui";
 
 const root = createRootRoute({ component: Outlet, pendingComponent: LoadingSpinner, pendingMs: 0, errorComponent: RouteError, notFoundComponent: NotFoundPage });
-// A live session makes the auth screens pointless, so send those visits home.
+// A live session makes the auth screens pointless, so send those visits on to
+// wherever the person belongs: unfinished profiles go straight to onboarding.
 async function redirectIfSignedIn() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) throw redirect({ to: "/", replace: true });
+  if (!session) return;
+  const me = await api<Me>("/me").catch(() => null);
+  throw redirect({ to: me && !me.profile.onboarded ? "/onboarding" : "/", replace: true });
 }
 const signin = createRoute({ getParentRoute: () => root, path: "/sign-in", beforeLoad: redirectIfSignedIn, component: () => <AuthPage /> });
 const signup = createRoute({ getParentRoute: () => root, path: "/sign-up", beforeLoad: redirectIfSignedIn, component: () => <AuthPage signup /> });
@@ -47,10 +51,16 @@ const confirmRoute = createRoute({
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     let error: unknown = new Error("Invalid confirmation link");
-    if (deps.token_hash && deps.type === "email") ({ error } = await supabase.auth.verifyOtp({ token_hash: deps.token_hash, type: "email" }));
+    const type = deps.type === "email" || !deps.type ? "email" : deps.type;
+    const otpTypes = ["email", "signup", "invite", "magiclink", "recovery", "email_change"];
+    if (deps.token_hash && otpTypes.includes(type)) ({ error } = await supabase.auth.verifyOtp({ token_hash: deps.token_hash, type: type as EmailOtpType }));
     else if (deps.code) ({ error } = await supabase.auth.exchangeCodeForSession(deps.code));
     if (error) throw new Error("Doğrulama bağlantısı geçersiz veya süresi dolmuş.");
-    throw redirect({ to: "/onboarding" });
+    // Recovery and address-change links already sign the person in; finish those
+    // in settings instead of asking them to fill in a profile again.
+    if (type === "recovery" || type === "email_change") throw redirect({ to: "/settings", replace: true });
+    const me = await api<Me>("/me").catch(() => null);
+    throw redirect({ to: me && !me.profile.onboarded ? "/onboarding" : "/", replace: true });
   },
 });
 
@@ -158,7 +168,13 @@ const home = createRoute({
   },
   component: HomePage,
 });
-const onboarding = createRoute({ getParentRoute: () => authenticated, path: "/onboarding", component: ProfileEditor });
+// Onboarding is a one-time gate. Once the profile is complete, the editor at
+// /profile/edit is the only place to change it.
+async function redirectIfOnboarded() {
+  const me = await api<Me>("/me");
+  if (me.profile.onboarded) throw redirect({ to: "/profile/$id", params: { id: me.profile.id }, replace: true });
+}
+const onboarding = createRoute({ getParentRoute: () => authenticated, path: "/onboarding", beforeLoad: redirectIfOnboarded, component: ProfileEditor });
 const edit = createRoute({ getParentRoute: () => authenticated, path: "/profile/edit", component: ProfileEditor });
 const user = createRoute({
   getParentRoute: () => authenticated, path: "/profile/$id",
