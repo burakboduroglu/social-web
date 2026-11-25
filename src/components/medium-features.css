@@ -38,7 +38,7 @@
   min-height: var(--x-control-height, 44px);
   border: 1px solid var(--x-border);
   border-radius: var(--feature-radius);
-  background: var(--feature-surface);
+  background: transparent;
   padding: 11px 12px;
   color: var(--x-text);
   font-family: inherit;
