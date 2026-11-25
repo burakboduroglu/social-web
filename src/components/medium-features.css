@@ -65,7 +65,7 @@
 .feature-page .feature-button[data-variant="outline"] { border-color: #41484f; }
 .feature-page .feature-button { max-width: 100%; min-height: var(--x-control-height, 44px); border-radius: var(--feature-radius); overflow-wrap: anywhere; }
 .feature-pagination { justify-content: space-between; margin-top: 24px; border-top: 1px solid var(--x-border); padding-top: 16px; }
-.feature-filters { margin-bottom: 20px; border: 1px solid var(--x-border); border-radius: var(--feature-radius); background: var(--feature-surface); padding: 14px; }
+.feature-filters { margin-bottom: 20px; border: 1px solid var(--x-border); border-radius: var(--feature-radius); padding: 14px; }
 .feature-filters > * { flex: 1 1 145px; }
 .feature-filters button { flex: 0 0 auto; }
 

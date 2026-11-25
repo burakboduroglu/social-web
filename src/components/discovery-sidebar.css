@@ -1,7 +1,8 @@
+/* Right-rail cards keep a hairline outline; a fill would compete with the feed. */
 .x-rightbar .discovery-sidebar {
   padding: 16px;
+  border: 1px solid var(--x-border);
   border-radius: 10px;
-  background: #080b0e;
 }
 .discovery-sidebar .discovery-sidebar-heading {
   display: flex;
@@ -96,7 +97,7 @@
   white-space: nowrap;
 }
 .x-rightbar .discovery-sidebar.discovery-sidebar-joined .discovery-sidebar-row:hover {
-  background: #16181c;
+  background: rgb(255 255 255 / 4%);
 }
 .x-rightbar .discovery-sidebar.discovery-sidebar-joined .discovery-sidebar-row:focus-visible {
   outline: 2px solid var(--x-blue);
