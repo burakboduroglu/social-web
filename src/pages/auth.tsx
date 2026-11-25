@@ -27,6 +27,9 @@ function authErrorMessage(error: { code?: string; message: string }, signup: boo
 export function AuthPage({ signup = false }: { signup?: boolean }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [message, setMessage] = useState(""), [captchaToken, setCaptchaToken] = useState("");
+  // Remembered after sign-up so the confirmation mail can be requested again
+  // without retyping the address.
+  const [pendingEmail, setPendingEmail] = useState(""), [resending, setResending] = useState(false);
   const turnstile = useRef<TurnstileHandle>(null);
   const inviteInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
@@ -46,7 +49,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         ? await supabase.auth.signUp({ ...credentials, options: { emailRedirectTo: `${location.origin}/auth/confirm`, data: { invite_code: String(data.get("invite")).trim() }, ...(captchaToken ? { captchaToken } : {}) } })
         : await supabase.auth.signInWithPassword({ ...credentials, options: captchaToken ? { captchaToken } : undefined });
       if (result.error) throw new Error(authErrorMessage(result.error, signup));
-      if (signup && !result.data.session) { clearSecrets(); setMessage("Kaydını tamamlamak için e-postana gelen doğrulama bağlantısını aç."); }
+      if (signup && !result.data.session) { clearSecrets(); setPendingEmail(credentials.email); setMessage("Kaydını tamamlamak için e-postana gelen doğrulama bağlantısını aç."); }
       else if (signup) await navigate({ to: "/onboarding", replace: true });
       else {
         // Signing in should land where the account is: unfinished profiles finish
@@ -60,6 +63,20 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
       setCaptchaToken(""); turnstile.current?.reset();
       setError(errorMessage(e));
     } finally { setBusy(false); }
+  }
+  // The first mail may land in spam or never arrive; Supabase rate-limits this
+  // endpoint, so a repeated click just shows the shared "too many" copy.
+  async function resendConfirmation() {
+    if (!pendingEmail || resending) return;
+    setError(""); setMessage("");
+    if (siteKey && !captchaToken) { setError("Yeniden göndermek için güvenlik doğrulamasını tamamla."); return; }
+    setResending(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({ type: "signup", email: pendingEmail, options: { emailRedirectTo: `${location.origin}/auth/confirm`, ...(captchaToken ? { captchaToken } : {}) } });
+      if (resendError) throw resendError;
+      setMessage("Doğrulama e-postası yeniden gönderildi. Gelen kutunu ve spam klasörünü kontrol et.");
+    } catch (e) { setError(authErrorMessage(e as { code?: string; message: string }, true)); }
+    finally { setCaptchaToken(""); turnstile.current?.reset(); setResending(false); }
   }
   return <main className="auth-layout">
     <div className="auth-intro">
@@ -83,6 +100,7 @@ export function AuthPage({ signup = false }: { signup?: boolean }) {
         {siteKey && <div className="turnstile-slot"><Turnstile ref={turnstile} siteKey={siteKey} onToken={setCaptchaToken} onError={setError} action={signup ? "signup" : "login"} /></div>}
         <Button className="bg-primary-500" aria-busy={busy} disabled={busy || (!!siteKey && !captchaToken)}>{busy ? <><span className="button-spinner" aria-hidden="true" /><span className="sr-only">Gönderiliyor</span></> : siteKey && !captchaToken ? "Doğrulama bekleniyor…" : signup ? "Davetle katıl" : "Giriş yap"}</Button>
         <ErrorNotice message={error} /><SuccessNotice message={message} />
+        {signup && pendingEmail && <button type="button" className="auth-resend" disabled={resending || busy} onClick={() => void resendConfirmation()}>{resending ? "Gönderiliyor…" : "Doğrulama e-postasını tekrar gönder"}</button>}
       </form>
       <div className="auth-switch"><span>{signup ? "Zaten hesabın var mı?" : "Davet kodun mu var?"}</span><Link to={signup ? "/sign-in" : "/sign-up"}>{signup ? "Giriş yap" : "Davetle katıl"}</Link></div>
     </section>

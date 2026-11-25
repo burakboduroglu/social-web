@@ -1304,6 +1304,25 @@ a:hover {
   font-weight: 600;
 }
 
+.auth-card .auth-resend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--x-blue);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.auth-card .auth-resend:hover:not(:disabled) { text-decoration: underline; }
+.auth-card .auth-resend:disabled { opacity: 0.6; cursor: wait; }
+
 .auth-card .turnstile-slot {
   display: flex;
   width: 100%;
