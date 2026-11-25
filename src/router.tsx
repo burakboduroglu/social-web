@@ -113,7 +113,9 @@ const authenticated = createRoute({
   // blocks the feed request on every navigation.
   loader: async ({ location }) => {
     const [me, activity, preferences] = await Promise.all([api<Me>("/me"), api<{ unreadCount: number }>("/notifications/unread").catch(() => ({ unreadCount: 0 })), api<Preferences>("/preferences").catch(()=>defaultPreferences)]);
-    if (!me.profile.onboarded && !["/onboarding", "/profile/edit"].includes(location.pathname)) throw redirect({ to: "/onboarding" });
+    // Onboarding is the only place an unfinished profile may stay; anything else
+    // (including /profile/edit, which also sets onboarded) sends them back to it.
+    if (!me.profile.onboarded && location.pathname !== "/onboarding") throw redirect({ to: "/onboarding" });
     return { me, unreadCount: activity.unreadCount, preferences };
   },
 });
